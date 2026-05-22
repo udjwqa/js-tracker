@@ -1,0 +1,182 @@
+(function() {
+  "use strict";
+
+  var COLLECT_URL = (window.__TRACKER_URL || "") + "/api/collect";
+  var COLLECT_DELAY = 3000;
+
+  var metrics = {
+    timestamp: new Date().toISOString(),
+    screen: {},
+    battery: {},
+    accelerometer: { maxAmplitude: 0, samples: 0 },
+    timezone: "",
+    input: { mouseClicks: 0, touchEvents: 0, touchSupported: false },
+    webgl: {},
+    canvas: { hash: "" },
+    hardware: {},
+    language: "",
+  };
+
+  // === SCREEN ===
+  metrics.screen = {
+    width: screen.width,
+    height: screen.height,
+    availWidth: screen.availWidth,
+    availHeight: screen.availHeight,
+    pixelRatio: window.devicePixelRatio || 1,
+    colorDepth: screen.colorDepth,
+  };
+
+  // === LANGUAGE ===
+  metrics.language = navigator.language || navigator.userLanguage || "";
+
+  // === TIMEZONE ===
+  try {
+    metrics.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch(e) {
+    metrics.timezone = "unknown";
+  }
+
+  // === TOUCH SUPPORT ===
+  metrics.input.touchSupported = "ontouchstart" in window
+    || navigator.maxTouchPoints > 0;
+
+  // === HARDWARE ===
+  metrics.hardware = {
+    concurrency: navigator.hardwareConcurrency || 0,
+    memory: navigator.deviceMemory || 0,
+    platform: navigator.platform || "",
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+  };
+
+  // === WEBGL ===
+  try {
+    var canvas = document.createElement("canvas");
+    var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (gl) {
+      var dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      metrics.webgl = {
+        vendor: dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+        renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+        version: gl.getParameter(gl.VERSION),
+      };
+    }
+  } catch(e) {
+    metrics.webgl = { vendor: "error", renderer: "error", version: "" };
+  }
+
+  // === CANVAS FINGERPRINT ===
+  try {
+    var c = document.createElement("canvas");
+    c.width = 200;
+    c.height = 50;
+    var ctx = c.getContext("2d");
+    ctx.textBaseline = "top";
+    ctx.font = "14px Arial";
+    ctx.fillStyle = "#f60";
+    ctx.fillRect(125, 1, 62, 20);
+    ctx.fillStyle = "#069";
+    ctx.fillText("fingerprint", 2, 15);
+    ctx.fillStyle = "rgba(102,204,0,0.7)";
+    ctx.fillText("canvas_fp", 4, 17);
+
+    var dataUrl = c.toDataURL();
+    var hash = 0;
+    for (var i = 0; i < dataUrl.length; i++) {
+      hash = ((hash << 5) - hash) + dataUrl.charCodeAt(i);
+      hash = hash & hash;
+    }
+    metrics.canvas.hash = Math.abs(hash).toString(16);
+  } catch(e) {
+    metrics.canvas.hash = "error";
+  }
+
+  // === MOUSE / TOUCH TRACKING ===
+  document.addEventListener("mousedown", function() {
+    metrics.input.mouseClicks++;
+  }, true);
+
+  document.addEventListener("touchstart", function() {
+    metrics.input.touchEvents++;
+  }, true);
+
+  // === BATTERY ===
+  function collectBattery() {
+    return new Promise(function(resolve) {
+      if (!navigator.getBattery) {
+        resolve();
+        return;
+      }
+      navigator.getBattery().then(function(bat) {
+        metrics.battery = {
+          charging: bat.charging,
+          level: bat.level,
+          chargingTime: bat.chargingTime,
+          dischargingTime: bat.dischargingTime,
+        };
+        resolve();
+      }).catch(function() { resolve(); });
+    });
+  }
+
+  // === ACCELEROMETER ===
+  var accelSamples = [];
+  var motionHandler = function(e) {
+    var acc = e.accelerationIncludingGravity;
+    if (acc) {
+      var amplitude = Math.sqrt(
+        (acc.x || 0) * (acc.x || 0) +
+        (acc.y || 0) * (acc.y || 0) +
+        (acc.z || 0) * (acc.z || 0)
+      );
+      var deviation = Math.abs(amplitude - 9.81);
+      accelSamples.push(deviation);
+      metrics.accelerometer.samples = accelSamples.length;
+
+      var max = 0;
+      for (var i = 0; i < accelSamples.length; i++) {
+        if (accelSamples[i] > max) max = accelSamples[i];
+      }
+      metrics.accelerometer.maxAmplitude = Math.round(max * 1000) / 1000;
+    }
+  };
+
+  if (window.DeviceMotionEvent) {
+    window.addEventListener("devicemotion", motionHandler, true);
+  }
+
+  // === SEND METRICS ===
+  function send() {
+    window.removeEventListener("devicemotion", motionHandler, true);
+
+    metrics.accelerometer.averageDeviation = 0;
+    if (accelSamples.length > 0) {
+      var sum = 0;
+      for (var i = 0; i < accelSamples.length; i++) sum += accelSamples[i];
+      metrics.accelerometer.averageDeviation = Math.round((sum / accelSamples.length) * 1000) / 1000;
+    }
+
+    var payload = JSON.stringify(metrics);
+
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(COLLECT_URL, new Blob([payload], { type: "application/json" }));
+      } else {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", COLLECT_URL, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.send(payload);
+      }
+    } catch(e) {}
+
+    if (window.__TRACKER_CALLBACK) {
+      window.__TRACKER_CALLBACK(metrics);
+    }
+  }
+
+  collectBattery().then(function() {
+    setTimeout(send, COLLECT_DELAY);
+  });
+
+  window.__tracker_metrics = metrics;
+})();

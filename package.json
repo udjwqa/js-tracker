@@ -1,0 +1,12 @@
+{
+  "name": "js-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "javascript-obfuscator tracker.js --output tracker.min.js --config obfuscator.json",
+    "dev": "cp tracker.js tracker.min.js"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.0.0"
+  }
+}

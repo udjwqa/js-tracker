@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracker.js Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: #e0e0e0; font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+  h2 { font-size: 14px; margin: 16px 0 8px; color: #888; }
+  .status { padding: 6px 12px; border-radius: 8px; font-size: 12px; display: inline-block; margin-bottom: 12px; background: #332800; color: #f59e0b; }
+  .status.done { background: #0a2e1a; color: #34d399; }
+  pre { background: #111; border: 1px solid #222; border-radius: 8px; padding: 12px; font-size: 11px; overflow: auto; margin-top: 12px; color: #888; max-height: 600px; }
+  .touch-area { background: #1a1a1a; border: 1px dashed #333; border-radius: 8px; padding: 20px; text-align: center; color: #555; font-size: 13px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>Tracker.js Test Page</h1>
+<div id="status" class="status">Collecting metrics... (3 sec)</div>
+
+<div class="touch-area">Click / tap here to test mouse vs touch detection</div>
+
+<h2>Collected Metrics (Raw JSON)</h2>
+<pre id="raw">Waiting...</pre>
+
+<script>
+  window.__TRACKER_URL = "http://localhost:8000";
+  window.__TRACKER_CALLBACK = function(m) {
+    var el = document.getElementById("status");
+    el.className = "status done";
+    el.textContent = "Metrics collected and sent!";
+    document.getElementById("raw").textContent = JSON.stringify(m, null, 2);
+  };
+</script>
+<script src="http://localhost:8000/tracker.js"></script>
+
+</body>
+</html>
