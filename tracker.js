@@ -29,6 +29,7 @@
 
   // === LANGUAGE ===
   metrics.language = navigator.language || navigator.userLanguage || "";
+  metrics.languages = navigator.languages ? Array.prototype.slice.call(navigator.languages) : [metrics.language];
 
   // === TIMEZONE ===
   try {
