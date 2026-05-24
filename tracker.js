@@ -146,6 +146,30 @@
     window.addEventListener("devicemotion", motionHandler, true);
   }
 
+  // === HONEYFIELD — inject hidden fields, detect bots ===
+  metrics.honeyfield = { injected: false, filled: false };
+  try {
+    var forms = document.getElementsByTagName("form");
+    for (var fi = 0; fi < forms.length; fi++) {
+      var hf = document.createElement("input");
+      hf.type = "text";
+      hf.name = "_hp_" + Math.random().toString(36).substring(7);
+      hf.style.cssText = "position:absolute;left:-9999px;top:-9999px;opacity:0;height:0;width:0;";
+      hf.tabIndex = -1;
+      hf.autocomplete = "off";
+      forms[fi].appendChild(hf);
+      metrics.honeyfield.injected = true;
+    }
+    setTimeout(function() {
+      var allHf = document.querySelectorAll("input[name^='_hp_']");
+      for (var hi = 0; hi < allHf.length; hi++) {
+        if (allHf[hi].value) {
+          metrics.honeyfield.filled = true;
+        }
+      }
+    }, 2500);
+  } catch(e) {}
+
   // === SEND METRICS ===
   function send() {
     window.removeEventListener("devicemotion", motionHandler, true);
